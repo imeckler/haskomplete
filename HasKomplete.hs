@@ -1,22 +1,22 @@
 module HasKomplete where
 
 import Language.Haskell.Interpreter
-import qualified Data.Text as T
-import Text.ParserCombinators.Parsec
-import Control.Applicative ((<$>), (<*>))
-import Data.List (isPrefixOf, isInfixOf)
-import Data.Either
-import Data.Either.Utils (fromRight)
-import Data.String.Utils (strip)
-import Data.List.Split (splitOn)
-import TypeString
 import Language.Haskell.Exts.Syntax
 import Language.Haskell.Exts.Parser hiding (parse)
 import qualified Language.Haskell.Exts.Extension as E
 import Hoogle
+import Text.ParserCombinators.Parsec
+import Control.Applicative ((<$>), (<*>))
+import Data.List (isPrefixOf, isInfixOf)
+import Data.List.Split (splitOn)
+import Data.String.Utils (strip)
+import Data.Either
+import Data.Either.Utils (fromRight)
 import Data.CaseInsensitive (mk)
 import Data.ByteString.UTF8 (fromString)
+import qualified Data.Text as T
 import System.IO.Unsafe
+import TypeOps
 
 
 {-# LANGUAGE NoMonomorphismRestriction #-}
