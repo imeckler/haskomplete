@@ -1,4 +1,10 @@
-module HasKomplete where
+{-# LANGUAGE ForeignFunctionInterface #-}
+{-# LANGUAGE OverloadedStrings #-}
+
+module Main where
+
+import Prelude (String)
+import ClassyPrelude
 
 import Language.Haskell.Interpreter hiding (ModuleName)
 import Language.Haskell.Exts.Syntax
@@ -7,21 +13,28 @@ import qualified Language.Haskell.Exts.Extension as E
 import Hoogle
 import Text.ParserCombinators.Parsec
 import Control.Applicative ((<$>), (<*>))
-import Data.List (isPrefixOf, isInfixOf)
+--import Data.List (isPrefixOf, isInfixOf)
 import Data.List.Split (splitOn)
 import Data.String.Utils (strip)
 import Data.Maybe (fromMaybe)
 import Data.Either
 import Data.Either.Utils (fromRight)
-import Data.CaseInsensitive (mk)
-import Data.ByteString.UTF8 (fromString)
+--import Data.ByteString.UTF8 (fromString)
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
+--import qualified Data.ByteString.Lazy.Char8 as T
+import System.IO (openTempFile)
 import System.IO.Unsafe
+import System.Directory (getTemporaryDirectory)
+import System.Environment (getArgs)
 import TypeOps
 import Strategies
-
-{-# LANGUAGE NoMonomorphismRestriction #-}
-{-# LANGUAGE PatternGuards #-}
+import Foreign hiding (unsafePerformIO)
+import Foreign.C.Types
+import Foreign.C.String
+import Foreign.Marshal.Array
+import qualified Data.Attoparsec.Text as A
+import Data.Char
 
 
 fromModuleName :: ModuleName -> String
@@ -77,7 +90,7 @@ firstArgString (TyFun first _) = typeString first
 nthArgString :: Int -> Type -> String
 nthArgString n = typeString . nthArg n
 
-databasePath :: FilePath
+databasePath :: String
 databasePath = "/Users/izzy/Library/Haskell/ghc-7.4.1/lib/hoogle-4.2.13/share/databases/default.hoo"
 
 database :: IO Database
@@ -96,6 +109,7 @@ debCompleHoogle = unsafePerformIO . complHoogle
 debSearchHoogle = unsafePerformIO . searchHoogle
 debQueryHoogle = unsafePerformIO . queryHoogle
 
+resultsToStrings :: [Result] -> [String]
 resultsToStrings = map (showTagText . self) . filter isTypedResult
 
 isTypedResult :: Result -> Bool
@@ -103,6 +117,40 @@ isTypedResult = (isInfixOf "::") . showTagText . self
 
 suggestWith :: Strategy -> String -> [String]
 suggestWith strategy = map (showTagText . self) . debSearchHoogle . typeString . unQualType . strategy . simpleTypeOf
+
+--foreign export ccall suggest :: CString -> IO (Ptr CString)
+--suggest :: CString -> IO (Ptr CString)
+--suggest str = do
+--    s <- peekCString str
+--    cs <- mapM newCString $ suggestWith returnsFirstArg s
+--    newArray cs
+
+parseTypeAnnoation :: A.Parser T.Text
+parseTypeAnnoation = let valid x = x /= '=' && x /= '\n' in do
+    name <- A.takeWhile1 isAlpha
+    A.skipSpace
+    A.string "::"
+    typ <- A.takeWhile1 valid
+    return $ name ++ " :: " ++ typ ++ "\n" ++ name ++ " = undefined"
+
+stubSource :: T.Text -> T.Text
+stubSource = T.unlines . rights . map (A.parseOnly parseTypeAnnoation) . T.lines
+
+stubAndWrite :: String -> IO String
+stubAndWrite f = do
+    tmpD <- getTemporaryDirectory
+    (tmp, tmpH) <- openTempFile tmpD "foo.hs"
+    T.readFile f >>= (T.hPutStr tmpH . stubSource)
+    return tmp
+
+-- want: stubAndWrite = getTemporaryDirectory >>> (\x -> openTempFile x "foo.hs") >>> ()
+
+stubAndWrite = getTemporaryDirectory >=> (\x -> openTempFile x "foo.hs") >=> 
+
+--main = do
+--    args <- getArgs
+--    let expr = args !! 0
+--    mapM_ putStrLn . take 7 $ suggestWith returnsFirstArg expr
 
 -- don't bother suggesting anything for a completely unrestricted type.
 -- ie if a type variable does not occur in the restriction, and it is the whole query,
