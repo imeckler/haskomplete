@@ -77,8 +77,10 @@ wrapExpr e = "(" ++ e ++ ")"
 
 defParseMode = defaultParseMode {extensions = [E.MultiParamTypeClasses]}
 
-simpleTypeOf :: String -> Type
-simpleTypeOf expr = fromParseResult . parseTypeWithMode defParseMode . fromRight . unsafePerformIO . runInterpreter $ setImports ["Prelude", "Text.ParserCombinators.Parsec", "Language.Haskell.Exts.Parser"] >> typeOf expr
+debTypeOf :: String -> Type
+debTypeOf expr = fromParseResult . parseTypeWithMode defParseMode . fromRight . unsafePerformIO . runInterpreter $ lookupType
+    where interpreter = setImports ["Prelude", "Text.ParserCombinators.Parsec", "Language.Haskell.Exts.Parser"] 
+          lookupType = interpreter >> typeOf expr
 
 firstArgString :: Type -> String
 firstArgString (TyForall _ rs t) = contextString rs ++ " => " ++ (firstArgString t)
@@ -101,10 +103,10 @@ searchHoogle :: String -> IO [Result]
 searchHoogle s = map snd . flip search query <$> database
     where query = fromRight $ parseQuery Haskell s
 
-complHoogle s = flip completions s <$> database
+complHoogle s   = flip completions s <$> database
 debCompleHoogle = unsafePerformIO . complHoogle
 debSearchHoogle = unsafePerformIO . searchHoogle
-debQueryHoogle = unsafePerformIO . queryHoogle
+debQueryHoogle  = unsafePerformIO . queryHoogle
 
 resultsToStrings :: [Result] -> [String]
 resultsToStrings = map (showTagText . self) . filter isTypedResult
@@ -113,7 +115,7 @@ isTypedResult :: Result -> Bool
 isTypedResult = (isInfixOf "::") . showTagText . self
 
 suggestWith :: Strategy -> String -> [String]
-suggestWith strategy = map (showTagText . self) . debSearchHoogle . typeString . unQualType . strategy . simpleTypeOf
+suggestWith strategy = map (showTagText . self) . debSearchHoogle . typeString . unQualType . strategy . debTypeOf
 
 --foreign export ccall suggest :: CString -> IO (Ptr CString)
 --suggest :: CString -> IO (Ptr CString)
@@ -142,8 +144,6 @@ suggestWith strategy = map (showTagText . self) . debSearchHoogle . typeString .
 
 
 
--- want: stubAndWrite = getTemporaryDirectory >>> (\x -> openTempFile x "foo.hs") >>> ()
-
 main = do
     args <- getArgs
     let expr = head args
@@ -152,6 +152,4 @@ main = do
 -- don't bother suggesting anything for a completely unrestricted type.
 -- ie if a type variable does not occur in the restriction, and it is the whole query,
 -- don't make the query.
-
-ims = "import Language.Haskell.Interpreter\nimport qualified Data.Text as T\nimport Text.ParserCombinators.Parsec\nimport Control.Applicative ((<$>), (<*>))\nimport Data.List (isPrefixOf)\nimport Data.Either\n"
 
